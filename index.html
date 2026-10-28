@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ludo Legends — Play locally</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Inter, "Segoe UI", Arial, sans-serif;
+      background: #f3f5f9;
+      color: #172033;
+      --red: #e64b58;
+      --green: #2da875;
+      --yellow: #e9b936;
+      --blue: #4285df;
+    }
+
+    * { box-sizing: border-box; }
+
+    body { margin: 0; min-height: 100vh; }
+
+    .app {
+      width: min(1120px, 100%);
+      margin: 0 auto;
+      padding: 28px 20px 36px;
+    }
+
+    header { text-align: center; margin-bottom: 22px; }
+    h1 { margin: 0; font-size: clamp(2rem, 5vw, 3rem); letter-spacing: -0.05em; }
+    header p { color: #667085; margin: 8px 0 0; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(300px, 660px) minmax(250px, 1fr);
+      align-items: start;
+      gap: 24px;
+    }
+
+    .board-wrap {
+      padding: 12px;
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 12px 35px #24304a18;
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: repeat(15, minmax(0, 1fr));
+      aspect-ratio: 1;
+      overflow: hidden;
+      border: 2px solid #293247;
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .cell {
+      position: relative;
+      display: flex;
+      min-width: 0;
+      min-height: 0;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid #dfe3eb;
+      background: #fff;
+    }
+
+    .cell.base-red { background: #f8dfe2; }
+    .cell.base-green { background: #d9f1e7; }
+    .cell.base-yellow { background: #fbf0ce; }
+    .cell.base-blue { background: #deebfc; }
+    .cell.yard { margin: 0; }
+    .cell.track { background: #fff; }
+    .cell.lane-red { background: #f3a5ab; }
+    .cell.lane-green { background: #92d6b8; }
+    .cell.lane-yellow { background: #f1d27e; }
+    .cell.lane-blue { background: #9dc2f2; }
+    .cell.home-center {
+      background: conic-gradient(var(--green) 0 90deg, var(--yellow) 90deg 180deg, var(--blue) 180deg 270deg, var(--red) 270deg);
+    }
+
+    .cell.safe::after {
+      content: "★";
+      position: absolute;
+      z-index: 1;
+      color: #687386;
+      font-size: clamp(8px, 1.7vw, 16px);
+      opacity: .8;
+      pointer-events: none;
+    }
+
+    .cell.yard::after, .cell.home-center::after { content: none; }
+
+    .pawn {
+      z-index: 2;
+      display: grid;
+      width: 82%;
+      height: 82%;
+      min-width: 7px;
+      min-height: 7px;
+      padding: 0;
+      place-items: center;
+      border: 2px solid white;
+      border-radius: 50%;
+      color: white;
+      font-size: clamp(6px, 1.2vw, 12px);
+      font-weight: 800;
+      line-height: 1;
+      cursor: default;
+      box-shadow: 0 1px 3px #17203355;
+    }
+
+    .pawn.red { background: var(--red); }
+    .pawn.green { background: var(--green); }
+    .pawn.yellow { background: var(--yellow); color: #3c321b; }
+    .pawn.blue { background: var(--blue); }
+    .pawn.selectable { cursor: pointer; animation: pulse 1s infinite alternate; }
+    .pawn.selectable:hover { transform: scale(1.16); }
+
+    @keyframes pulse {
+      from { box-shadow: 0 0 0 2px #fff, 0 0 0 4px #202a3d55; }
+      to { box-shadow: 0 0 0 3px #fff, 0 0 0 7px #202a3d22; }
+    }
+
+    .side { display: grid; gap: 16px; }
+    .panel {
+      padding: 20px;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 8px 24px #24304a12;
+    }
+
+    .turn-label { margin: 0 0 12px; color: #667085; font-size: .9rem; }
+    .turn-player { display: flex; align-items: center; gap: 10px; font-size: 1.35rem; font-weight: 750; }
+    .swatch { width: 15px; height: 15px; border-radius: 50%; background: var(--player-color); }
+    .dice {
+      display: grid;
+      width: 68px;
+      height: 68px;
+      margin: 18px 0;
+      place-items: center;
+      border: 2px solid #d9deea;
+      border-radius: 15px;
+      background: #fbfcfe;
+      font-size: 2.4rem;
+      font-weight: 800;
+    }
+
+    button.control {
+      width: 100%;
+      padding: 12px 16px;
+      border: 0;
+      border-radius: 10px;
+      background: #27344e;
+      color: white;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button.control:hover:not(:disabled) { background: #394b6d; }
+    button.control:disabled { opacity: .45; cursor: not-allowed; }
+    button.new-game { margin-top: 12px; background: #edf0f6; color: #27344e; }
+    button.new-game:hover:not(:disabled) { background: #e1e6ef; }
+
+    .setup-label, .players-title { display: block; margin: 0 0 8px; font-size: .9rem; font-weight: 700; }
+    select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #d9deea;
+      border-radius: 9px;
+      background: white;
+      color: inherit;
+      font: inherit;
+    }
+
+    .status { min-height: 48px; margin: 14px 0 0; color: #4a556b; line-height: 1.45; }
+    .players { display: grid; gap: 9px; }
+    .player-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: .92rem; }
+    .player-name { display: flex; align-items: center; gap: 8px; }
+    .player-row .swatch { width: 11px; height: 11px; }
+    .rules { color: #667085; font-size: .88rem; line-height: 1.55; }
+    .rules h2 { margin: 0 0 8px; color: #172033; font-size: 1rem; }
+    .rules ul { margin: 0; padding-left: 18px; }
+    .rules li + li { margin-top: 5px; }
+
+    :root {
+      color-scheme: light;
+      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+      background: #eaf5ee;
+      color: #203b35;
+      --red: #ef5c63;
+      --green: #20a879;
+      --yellow: #f0bf3f;
+      --blue: #438ce1;
+    }
+
+    body {
+      background:
+        radial-gradient(ellipse at 9% 7%, #fff6d8 0, transparent 26rem),
+        radial-gradient(ellipse at 94% 24%, #d7edff 0, transparent 28rem),
+        linear-gradient(145deg, #f8f6e9 0%, #e8f4ec 54%, #e6f0fc 100%);
+    }
+
+    .app { width: min(1230px, 100%); padding-top: 30px; }
+    header { position: relative; margin-bottom: 27px; }
+    .brand-line {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 9px;
+      padding: 7px 12px;
+      border: 1px solid #d5e5d7;
+      border-radius: 999px;
+      background: #ffffffb8;
+      color: #52746a;
+      font-size: .73rem;
+      font-weight: 800;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    .brand-line span:first-child { font-size: 1rem; letter-spacing: 0; }
+    h1 { color: #183c34; font-size: clamp(2.6rem, 6vw, 4.2rem); line-height: .98; }
+    h1 em { color: #e59b35; font-style: normal; }
+    header p { margin-top: 12px; color: #668078; font-size: 1.04rem; }
+    .layout { grid-template-columns: minmax(300px, 690px) minmax(270px, 1fr); gap: 22px; }
+    .board-wrap {
+      padding: clamp(12px, 2vw, 22px);
+      border: 1px solid #ffffff;
+      border-radius: 26px;
+      background: #fffdf6;
+      box-shadow: 0 20px 55px #31524620, 0 3px 8px #3152460c;
+    }
+    .board-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin: 0 2px 13px;
+    }
+    .board-heading strong { color: #375d50; font-size: .76rem; letter-spacing: .13em; }
+    .board-heading span {
+      padding: 6px 10px;
+      border: 1px solid #e8e4d7;
+      border-radius: 999px;
+      background: #faf8ef;
+      color: #7a8171;
+      font-size: .72rem;
+      font-weight: 700;
+    }
+    .board {
+      gap: 1px;
+      padding: 5px;
+      border: 3px solid #36544a;
+      border-radius: 15px;
+      background: #d7e0d4;
+      box-shadow: inset 0 0 0 2px #ffffff, 0 6px 0 #29443b;
+    }
+    .cell { overflow: hidden; border: 0; border-radius: 3px; }
+    .cell.base-red { background: #ffdddd; }
+    .cell.base-green { background: #d7f0e2; }
+    .cell.base-yellow { background: #fff0c8; }
+    .cell.base-blue { background: #dceaff; }
+    .cell.track { background: #fffef9; box-shadow: inset 0 0 0 1px #e9e7dc; }
+    .cell.lane-red { background: #f3a0a4; }
+    .cell.lane-green { background: #8ed8b7; }
+    .cell.lane-yellow { background: #f2d077; }
+    .cell.lane-blue { background: #99c3f5; }
+    .cell.home-center {
+      background: conic-gradient(from -45deg, #20a879 0 25%, #f0bf3f 25% 50%, #438ce1 50% 75%, #ef5c63 75% 100%);
+      border-radius: 50%;
+      box-shadow: inset 0 0 0 2px #fffdf6, 0 0 0 1px #ffffff;
+    }
+    .cell.safe::after { color: #daa72c; font-size: clamp(9px, 1.8vw, 17px); text-shadow: 0 1px #fff; }
+    .pawn {
+      width: 83%;
+      height: 83%;
+      border: 2px solid #fffdf6;
+      font-size: clamp(7px, 1.25vw, 12px);
+      box-shadow: 0 2px 3px #18352d50, inset 0 -2px 0 #00000020;
+      transition: transform .16s ease, box-shadow .16s ease;
+    }
+    .pawn.red { background: linear-gradient(145deg, #ff8283, #df404b); }
+    .pawn.green { background: linear-gradient(145deg, #53d39d, #13815e); }
+    .pawn.yellow { background: linear-gradient(145deg, #ffe27c, #e0a821); color: #60430b; }
+    .pawn.blue { background: linear-gradient(145deg, #75b8ff, #3272d0); }
+    .pawn.selectable { animation: pawn-bounce .65s ease-in-out infinite alternate; }
+    .pawn.selectable:hover { transform: scale(1.23) translateY(-2px); }
+    @keyframes pawn-bounce {
+      from { box-shadow: 0 0 0 2px #fffdf6, 0 0 0 4px #f7bd4c; }
+      to { box-shadow: 0 0 0 3px #fffdf6, 0 0 0 7px #f7bd4c99; }
+    }
+    .board-footer {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 8px 18px;
+      padding-top: 14px;
+      color: #7b8b80;
+      font-size: .76rem;
+    }
+    .board-footer span { display: inline-flex; align-items: center; gap: 5px; }
+    .board-footer b { color: #dba72c; font-size: 1rem; }
+    .side { gap: 14px; }
+    .panel {
+      padding: 20px;
+      border: 1px solid #ffffff;
+      border-radius: 20px;
+      background: #fffdf6eF;
+      box-shadow: 0 12px 30px #31524613;
+    }
+    .turn-label {
+      margin: 17px 0 9px;
+      color: #819087;
+      font-size: .72rem;
+      font-weight: 800;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    .turn-player { gap: 11px; color: #24463b; font-size: 1.45rem; }
+    .swatch { width: 17px; height: 17px; border: 2px solid #fff; box-shadow: 0 1px 5px #1f3b3326; }
+    .dice {
+      width: 82px;
+      height: 82px;
+      margin: 17px auto;
+      border: 0;
+      border-radius: 22px;
+      background: linear-gradient(145deg, #fff, #f4edda);
+      color: #38564b;
+      box-shadow: 0 5px 0 #ded7c3, 0 9px 18px #3d543520, inset 0 0 0 1px #e8e0cd;
+      font-size: 3.2rem;
+    }
+    .dice.rolling { animation: dice-roll .38s ease-in-out; }
+    @keyframes dice-roll {
+      0% { transform: rotate(0) scale(1); }
+      35% { transform: rotate(-16deg) scale(1.13); }
+      70% { transform: rotate(13deg) scale(.93); }
+      100% { transform: rotate(0) scale(1); }
+    }
+    button.control { border-radius: 12px; background: #1d765b; box-shadow: 0 4px 0 #14553f; transition: transform .15s, box-shadow .15s, background .15s; }
+    button.control:hover:not(:disabled) { transform: translateY(-2px); background: #238b69; box-shadow: 0 6px 0 #14553f; }
+    button.control:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 2px 0 #14553f; }
+    button.control:disabled { opacity: .48; box-shadow: none; }
+    button.new-game { background: #f2eee1; color: #486259; box-shadow: 0 3px 0 #e1dac6; }
+    button.new-game:hover:not(:disabled) { background: #e9e2d0; }
+    .setup-label, .players-title { color: #446258; font-size: .82rem; letter-spacing: .03em; }
+    select { border-color: #e4e3d7; border-radius: 11px; background: #fffefa; }
+    .status {
+      display: flex;
+      align-items: center;
+      min-height: 53px;
+      margin-top: 16px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: #f2f5e9;
+      color: #536e5d;
+      font-size: .91rem;
+      font-weight: 650;
+    }
+    .players { gap: 7px; }
+    .player-row {
+      min-height: 39px;
+      padding: 7px 9px;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      color: #52665c;
+      transition: background .2s, border-color .2s;
+    }
+    .player-row.active { border-color: #dfe9d5; background: #f1f5e8; color: #2e5746; font-weight: 750; }
+    .player-row .swatch { width: 13px; height: 13px; }
+    .home-count { color: #7f8e7c; font-size: .78rem; font-weight: 700; }
+    .progress-track { width: 47px; height: 6px; overflow: hidden; border-radius: 99px; background: #ebe9df; }
+    .progress-fill { height: 100%; border-radius: inherit; background: var(--player-color); transition: width .25s ease; }
+    .rules { color: #728078; font-size: .83rem; }
+    .rules h2 { color: #446258; }
+
+    @media (max-width: 760px) {
+      .app { padding: 20px 12px 28px; }
+      .layout { grid-template-columns: 1fr; gap: 14px; }
+      .board-wrap { padding: 7px; }
+      .panel { padding: 16px; }
+      .board-heading { margin: 0 2px 10px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <div class="brand-line"><span>🎲</span> The classic, with extra sparkle</div>
+      <h1>Ludo <em>Legends</em></h1>
+      <p>Roll big. Race home. Become the legend.</p>
+    </header>
+
+    <div class="layout">
+      <section class="board-wrap" aria-label="Ludo board">
+        <div class="board-heading"><strong>THE GRAND RACE</strong><span>✦ Pass &amp; play · 2–4 players</span></div>
+        <div class="board" id="board"></div>
+        <div class="board-footer"><span><b>★</b> Safe spot</span><span>🏁 Exact roll to finish</span><span>✨ Six gets you moving</span></div>
+      </section>
+
+      <aside class="side">
+        <section class="panel">
+          <label class="setup-label" for="player-count">Players</label>
+          <select id="player-count">
+            <option value="2">2 players</option>
+            <option value="3">3 players</option>
+            <option value="4" selected>4 players</option>
+          </select>
+
+          <p class="turn-label" id="turn-label">Current turn</p>
+          <div class="turn-player" id="turn-player"></div>
+          <div class="dice" id="dice" aria-label="Dice result">—</div>
+          <button class="control" id="roll-button">Roll dice</button>
+          <button class="control new-game" id="new-game">New game</button>
+          <p class="status" id="status" aria-live="polite"></p>
+        </section>
+
+        <section class="panel">
+          <h2 class="players-title">🏆 Race to the finish</h2>
+          <div class="players" id="players"></div>
+        </section>
+
+        <section class="panel rules">
+          <h2>How to play</h2>
+          <ul>
+            <li>Roll a 6 to bring a pawn out of the yard.</li>
+            <li>Choose one of the highlighted pawns to move.</li>
+            <li>Land on an opponent to send them back, unless the square is safe.</li>
+            <li>Reach home with an exact roll. A 6, capture, or finish earns another turn.</li>
+            <li>Two pawns together form a blockade; other players cannot pass it.</li>
+            <li>Three consecutive sixes end your turn.</li>
+          </ul>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <script>
+    const COLORS = ["red", "green", "yellow", "blue"];
+    const COLOR_NAMES = { red: "Red", green: "Green", yellow: "Yellow", blue: "Blue" };
+    const STARTS = { red: 0, green: 13, yellow: 26, blue: 39 };
+    const ENTRIES = { red: 50, green: 11, yellow: 24, blue: 37 };
+    const BASES = {
+      red: { row: [0, 5], col: [0, 5] },
+      green: { row: [0, 5], col: [9, 14] },
+      yellow: { row: [9, 14], col: [9, 14] },
+      blue: { row: [9, 14], col: [0, 5] }
+    };
+    const TRACK = [
+      [6,1],[6,2],[6,3],[6,4],[6,5],[5,6],[4,6],[3,6],[2,6],[1,6],[0,6],[0,7],
+      [0,8],[1,8],[2,8],[3,8],[4,8],[5,8],[6,9],[6,10],[6,11],[6,12],[6,13],[6,14],
+      [7,14],[8,14],[8,13],[8,12],[8,11],[8,10],[8,9],[9,8],[10,8],[11,8],[12,8],
+      [13,8],[14,8],[14,7],[14,6],[13,6],[12,6],[11,6],[10,6],[9,6],[8,5],[8,4],
+      [8,3],[8,2],[8,1],[8,0],[7,0],[6,0]
+    ];
+    const LANES = {
+      red: [[7,1],[7,2],[7,3],[7,4],[7,5],[7,7]],
+      green: [[1,7],[2,7],[3,7],[4,7],[5,7],[7,7]],
+      yellow: [[7,13],[7,12],[7,11],[7,10],[7,9],[7,7]],
+      blue: [[13,7],[12,7],[11,7],[10,7],[9,7],[7,7]]
+    };
+    const SAFE = new Set([0, 8, 13, 21, 26, 34, 39, 47]);
+    const board = document.getElementById("board");
+    const diceDisplay = document.getElementById("dice");
+    const rollButton = document.getElementById("roll-button");
+    const status = document.getElementById("status");
+    const turnPlayer = document.getElementById("turn-player");
+    const turnLabel = document.getElementById("turn-label");
+    const playerList = document.getElementById("players");
+    const playerCount = document.getElementById("player-count");
+    let players;
+    let currentIndex;
+    let diceValue = null;
+    let consecutiveSixes = 0;
+    let gameOver = false;
+    let awaitingMove = false;
+
+    function newGame() {
+      const count = Number(playerCount.value);
+      const activeColors = count === 2 ? ["red", "yellow"] : COLORS.slice(0, count);
+      players = activeColors.map(color => ({
+        color,
+        pawns: Array.from({ length: 4 }, () => -1)
+      }));
+      currentIndex = 0;
+      diceValue = null;
+      consecutiveSixes = 0;
+      gameOver = false;
+      awaitingMove = false;
+      diceDisplay.textContent = "—";
+      status.textContent = `${COLOR_NAMES[players[currentIndex].color]} starts. Roll the dice.`;
+      render();
+    }
+
+    function positionKey(color, progress) {
+      if (progress === -1) return null;
+      if (progress >= 51) {
+        const [row, col] = LANES[color][progress - 51];
+        return `${row},${col}`;
+      }
+      const [row, col] = TRACK[(STARTS[color] + progress) % TRACK.length];
+      return `${row},${col}`;
+    }
+
+    function movablePawns(player, roll) {
+      return player.pawns.reduce((indices, progress, index) => {
+        if (progress === -1 ? roll === 6 : progress + roll <= 56) indices.push(index);
+        return indices;
+      }, []);
+    }
+
+    function hasBlockadeBetween(player, from, to) {
+      if (from < 0 || from >= 51) return false;
+      for (let step = 1; step <= to - from; step++) {
+        const progress = from + step;
+        if (progress >= 51) break;
+        const pathIndex = (STARTS[player.color] + progress) % TRACK.length;
+        const [row, col] = TRACK[pathIndex];
+        const sameColorCount = player.pawns.filter(pawnProgress =>
+          pawnProgress >= 0 && pawnProgress < 51 &&
+          positionKey(player.color, pawnProgress) === `${row},${col}`
+        ).length;
+        if (sameColorCount >= 2) return true;
+        const opponentCount = players
+          .filter(other => other !== player)
+          .reduce((count, other) => count + other.pawns.filter(pawnProgress =>
+            pawnProgress >= 0 && pawnProgress < 51 &&
+            positionKey(other.color, pawnProgress) === `${row},${col}`
+          ).length, 0);
+        if (opponentCount >= 2) return true;
+      }
+      return false;
+    }
+
+    function canMovePawn(player, pawnIndex, roll) {
+      const progress = player.pawns[pawnIndex];
+      if (progress === -1) return roll === 6;
+      const target = progress + roll;
+      return target <= 56 && !hasBlockadeBetween(player, progress, target);
+    }
+
+    function rollDice() {
+      if (gameOver || awaitingMove) return;
+      diceValue = Math.floor(Math.random() * 6) + 1;
+      diceDisplay.textContent = ["", "⚀", "⚁", "⚂", "⚃", "⚄", "⚅"][diceValue];
+      diceDisplay.classList.remove("rolling");
+      void diceDisplay.offsetWidth;
+      diceDisplay.classList.add("rolling");
+      window.setTimeout(() => diceDisplay.classList.remove("rolling"), 400);
+      const player = players[currentIndex];
+      if (diceValue === 6) consecutiveSixes++;
+      else consecutiveSixes = 0;
+
+      if (consecutiveSixes === 3) {
+        status.textContent = `${COLOR_NAMES[player.color]} rolled three sixes. Turn passes.`;
+        consecutiveSixes = 0;
+        endTurn(false);
+        return;
+      }
+
+      const available = movablePawns(player, diceValue)
+        .filter(index => canMovePawn(player, index, diceValue));
+      if (available.length === 0) {
+        status.textContent = `${COLOR_NAMES[player.color]} rolled ${diceValue}; no legal move.`;
+        endTurn(diceValue === 6);
+        return;
+      }
+      awaitingMove = true;
+      status.textContent = available.length === 1
+        ? `Rolled ${diceValue}. Select the highlighted pawn.`
+        : `Rolled ${diceValue}. Choose a highlighted pawn.`;
+      render();
+    }
+
+    function movePawn(pawnIndex) {
+      if (!awaitingMove || gameOver) return;
+      const player = players[currentIndex];
+      if (!canMovePawn(player, pawnIndex, diceValue)) return;
+      const previous = player.pawns[pawnIndex];
+      player.pawns[pawnIndex] = previous === -1 ? 0 : previous + diceValue;
+      const newProgress = player.pawns[pawnIndex];
+      let captured = 0;
+
+      if (newProgress < 51) {
+        const pathIndex = (STARTS[player.color] + newProgress) % TRACK.length;
+        if (!SAFE.has(pathIndex)) {
+          const landed = positionKey(player.color, newProgress);
+          for (const opponent of players) {
+            if (opponent === player) continue;
+            opponent.pawns = opponent.pawns.map(opponentProgress => {
+              if (positionKey(opponent.color, opponentProgress) === landed) {
+                captured++;
+                return -1;
+              }
+              return opponentProgress;
+            });
+          }
+        }
+      }
+
+      const reachedHome = newProgress === 56;
+      const finished = player.pawns.every(progress => progress === 56);
+      let message = `${COLOR_NAMES[player.color]} moved pawn ${pawnIndex + 1}.`;
+      if (captured) message += ` Captured ${captured} pawn${captured > 1 ? "s" : ""}!`;
+      if (reachedHome) message += " A pawn reached home!";
+      awaitingMove = false;
+
+      if (finished) {
+        gameOver = true;
+        message = `${COLOR_NAMES[player.color]} wins!`;
+        turnLabel.textContent = "Game over";
+        status.textContent = message;
+        render();
+        return;
+      }
+
+      const extraTurn = diceValue === 6 || captured > 0 || reachedHome;
+      status.textContent = extraTurn ? `${message} Roll again.` : message;
+      endTurn(extraTurn);
+    }
+
+    function endTurn(extraTurn) {
+      awaitingMove = false;
+      diceValue = null;
+      if (!extraTurn) {
+        currentIndex = (currentIndex + 1) % players.length;
+        consecutiveSixes = 0;
+      }
+      render();
+    }
+
+    function inRange(value, range) { return value >= range[0] && value <= range[1]; }
+
+    function baseColorAt(row, col) {
+      for (const color of COLORS) {
+        const base = BASES[color];
+        if (inRange(row, base.row) && inRange(col, base.col)) return color;
+      }
+      return null;
+    }
+
+    function cellKind(row, col) {
+      const base = baseColorAt(row, col);
+      if (base) return `base-${base}`;
+      if (row === 7 && col === 7) return "home-center";
+
+      for (const color of COLORS) {
+        if (LANES[color].some(([laneRow, laneCol]) => laneRow === row && laneCol === col && !(row === 7 && col === 7))) {
+          return `lane-${color}`;
+        }
+      }
+
+      const trackIndex = TRACK.findIndex(([trackRow, trackCol]) => trackRow === row && trackCol === col);
+      return trackIndex >= 0 ? `track${SAFE.has(trackIndex) ? " safe" : ""}` : "";
+    }
+
+    function yardSlot(color, row, col) {
+      const base = BASES[color];
+      if (!base || !inRange(row, base.row) || !inRange(col, base.col)) return -1;
+      const top = base.row[0] + 1;
+      const left = base.col[0] + 1;
+      const slots = [[top, left], [top, left + 3], [top + 3, left], [top + 3, left + 3]];
+      return slots.findIndex(([slotRow, slotCol]) => slotRow === row && slotCol === col);
+    }
+
+    function pawnsAt(row, col) {
+      const found = [];
+      for (const player of players) {
+        player.pawns.forEach((progress, index) => {
+          if (progress !== -1 && positionKey(player.color, progress) === `${row},${col}`) {
+            found.push({ player, index });
+          }
+        });
+      }
+      return found;
+    }
+
+    function render() {
+      const current = players[currentIndex];
+      const movable = awaitingMove
+        ? movablePawns(current, diceValue).filter(index => canMovePawn(current, index, diceValue))
+        : [];
+      turnPlayer.innerHTML = `<span class="swatch" style="--player-color:var(--${current.color})"></span>${COLOR_NAMES[current.color]}`;
+      turnLabel.textContent = gameOver ? "Game over" : "Current turn";
+      rollButton.disabled = gameOver || awaitingMove;
+      rollButton.textContent = awaitingMove ? "Choose a pawn" : gameOver ? "Game finished" : "🎲  Roll the dice";
+      playerList.innerHTML = players.map(player => {
+        const home = player.pawns.filter(progress => progress === 56).length;
+        return `<div class="player-row${player === current ? " active" : ""}"><span class="player-name"><span class="swatch" style="--player-color:var(--${player.color})"></span>${COLOR_NAMES[player.color]}</span><span class="player-name"><span class="progress-track"><span class="progress-fill" style="--player-color:var(--${player.color});width:${home * 25}%"></span></span><span class="home-count">${home}/4 home</span></span></div>`;
+      }).join("");
+
+      board.innerHTML = "";
+      for (let row = 0; row < 15; row++) {
+        for (let col = 0; col < 15; col++) {
+          const cell = document.createElement("div");
+          cell.className = `cell ${cellKind(row, col)}`;
+          const base = baseColorAt(row, col);
+          const slot = yardSlot(base, row, col);
+          let pawns = [];
+
+          if (slot >= 0) {
+            const player = players.find(item => item.color === base);
+            if (player && player.pawns[slot] === -1) pawns = [{ player, index: slot, inYard: true }];
+          }
+
+          pawns.push(...pawnsAt(row, col));
+          for (const pawn of pawns) {
+            const token = document.createElement("button");
+            const selectable = pawn.player === current && movable.includes(pawn.index);
+            token.className = `pawn ${pawn.player.color}${selectable ? " selectable" : ""}`;
+            token.textContent = String(pawn.index + 1);
+            token.setAttribute("aria-label", `${COLOR_NAMES[pawn.player.color]} pawn ${pawn.index + 1}${pawn.inYard ? ", in yard" : ""}${selectable ? ", selectable" : ""}`);
+            token.disabled = !selectable;
+            if (selectable) token.addEventListener("click", () => movePawn(pawn.index));
+            cell.appendChild(token);
+          }
+          board.appendChild(cell);
+        }
+      }
+    }
+
+    rollButton.addEventListener("click", rollDice);
+    document.getElementById("new-game").addEventListener("click", newGame);
+    playerCount.addEventListener("change", newGame);
+    newGame();
+  </script>
+</body>
+</html>
